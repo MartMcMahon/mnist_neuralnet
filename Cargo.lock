@@ -645,7 +645,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mnist_rs"
+name = "mnist_neuralnet"
 version = "0.1.0"
 dependencies = [
  "env_logger",
