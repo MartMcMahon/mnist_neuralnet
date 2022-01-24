@@ -1,0 +1,6 @@
+/target
+
+# data files
+train-labels*
+train-images*
+t10k-*
