@@ -2,6 +2,8 @@
 
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
+use std::fs::File;
+use std::io::prelude::*;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -13,32 +15,38 @@ const HEIGHT: u32 = 28;
 const WINDOW_W: u32 = 320;
 const WINDOW_H: u32 = 320;
 
-use std::fs::File;
-use std::io::prelude::*;
-
-fn main() -> Result<(), Error> {
-    // read first image file
-    let mut f = File::open("train-images-idx3-ubyte").unwrap();
-
+fn read_training_labels() -> Vec<u8> {
+    let mut f = File::open("train-labels-idx1-ubyte").unwrap();
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).unwrap();
+    assert_eq!(i32::from_be_bytes(buffer[0..=3].try_into().unwrap()), 2049);
+    buffer[8..].try_into().unwrap()
+}
 
+fn read_training_images() -> Vec<Vec<u8>> {
+    let mut f = File::open("train-images-idx3-ubyte").unwrap();
+    let mut buffer = Vec::new();
+    f.read_to_end(&mut buffer).unwrap();
     assert_eq!(i32::from_be_bytes(buffer[0..=3].try_into().unwrap()), 2051);
     assert_eq!(i32::from_be_bytes(buffer[4..=7].try_into().unwrap()), 60000);
 
-    for (i, x) in buffer.iter().enumerate() {
-        if x.eq(&(255 as u8)) {
-            println!("{}", i);
-            break;
-        }
+    let total_items = 60000;
+    let mut imgs = Vec::new();
+    for i in 0..total_items {
+        // single item
+        let img: Vec<u8> = buffer[(16 + (i * 784))..16 + ((i + 1) * 784)]
+            .try_into()
+            .unwrap();
+        imgs.push(img);
     }
+    imgs
+}
+
+fn main() -> Result<(), Error> {
     let mut world = World {
-        // image: buffer[16..800].try_into().unwrap(),
-        images: vec![
-            buffer[16..800].try_into().unwrap(),
-            buffer[800..1584].try_into().unwrap(),
-        ],
-        image_index: 0,
+        images: read_training_images(),
+        index: 0,
+        labels: read_training_labels(),
     };
 
     // draw window
@@ -73,7 +81,7 @@ fn main() -> Result<(), Error> {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
-            println!("index: {:#?}", world.image_index)
+            println!("label: {:#?}", world.labels[world.index]);
         }
 
         // Handle input events
@@ -86,7 +94,7 @@ fn main() -> Result<(), Error> {
 
             // on click (0 == left mouse button)
             if input.mouse_released(0) {
-                world.image_index += 1;
+                world.index += 1;
             }
 
             // Resize the window
@@ -103,15 +111,13 @@ fn main() -> Result<(), Error> {
 
 struct World {
     images: Vec<Vec<u8>>,
-    image_index: usize,
+    index: usize,
+    labels: Vec<u8>,
 }
 impl World {
     fn draw(&self, frame: &mut [u8]) {
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-            let x = (i % WIDTH as usize) as i16;
-            let y = (i / WIDTH as usize) as i16;
-
-            let img = &self.images[self.image_index];
+            let img = &self.images[self.index];
             let p = [img[i], img[i], img[i], 0xff];
             pixel.copy_from_slice(&p);
         }
